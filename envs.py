@@ -4,6 +4,23 @@ import numpy as np
 from numpy.typing import NDArray
 
 # TODO: GridState + refactor
+@dataclass(frozen=True)
+class _State:
+    _idx: int
+    _grid: GridWorld
+
+    def __post_init__(self):
+        self.row = self._idx // self.grid.w
+        self.col = self._idx % self.grid.w
+
+    @property
+    def idx(self):
+        return self._idx
+
+    @property
+    def idx_to_coords(self):
+        return self.row, self.col
+
 
 @dataclass
 class GridWorld:
@@ -56,12 +73,11 @@ class GridWorld:
         if np.unique(new_obstacles, axis=1).shape[1] != new_obstacles.shape[1]:
             raise ValueError("Obstacles must be unique")
         # Check for self obstacles
-        if np.any(np.diff(new_obstacles, axis=0)):
+        if np.any(np.diff(new_obstacles, axis=0) == 0):
             raise ValueError("Obstacles must be between different states")
         # Check for non-neighbor obstacles
-        if self._obstacles is not None:
-            if not np.all(self.adjacency_matrix[self._obstacles[:, 0], new_obstacles[:, 1]]):
-                raise ValueError("Obstacles must be between adjacent states")
+        if not np.all(self._base_adjacency_matrix[new_obstacles[0], new_obstacles[1]]):
+            raise ValueError("Obstacles must be between adjacent states")
 
         self._obstacles = new_obstacles
     
@@ -74,13 +90,19 @@ class GridWorld:
         return self._w * self._h
     
     @property
-    def adjacency_matrix(self) -> NDArray[np.bool_]:
+    def _base_adjacency_matrix(self) -> NDArray[np.bool_]:
         # Matrix construction assuming non-toroidal grid
         row_idxs = np.arange(self.n_states) // self._w
         col_idxs = np.arange(self.n_states) % self._w
         vert_dists = np.abs(row_idxs[:, None] - row_idxs[None, :])
         hor_dists = np.abs(col_idxs[:, None] - col_idxs[None, :]) 
         adj_mat = hor_dists + vert_dists == 1 
+
+        return adj_mat
+    
+    @property
+    def adjacency_matrix(self) -> NDArray[np.bool_]:
+        adj_mat = self._base_adjacency_matrix
 
         # Inserting obstacles
         if self._obstacles is not None:
