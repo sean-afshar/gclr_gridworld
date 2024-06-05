@@ -1,6 +1,6 @@
-from dataclasses import dataclass 
-import numpy as np
 from __future__ import annotations
+from dataclasses import dataclass, field
+import numpy as np
 from numpy.typing import NDArray
 
 # TODO: GridState + refactor
@@ -9,7 +9,13 @@ from numpy.typing import NDArray
 class GridWorld:
     _w: int 
     _h: int
-    _obstacles: NDArray[np.int_] = None
+    _obstacles: NDArray[np.int_] = field(default=None)
+
+    def __post_init__(self) -> None:
+        self.h = self._h
+        self.w = self._w
+        if self._obstacles is not None:
+            self.obstacles = self._obstacles
 
     @property
     def w(self) -> int:
@@ -30,31 +36,7 @@ class GridWorld:
         if new_h <= 0:
             raise ValueError("Height must be greater than 0")
         self._h = new_h
-    
-    @property
-    def grid_indices(self) -> NDArray[np.int_]:
-        return np.arange(self.n_states).reshape((self._h, self._w))
-    
-    @property
-    def n_states(self) -> int:
-        return self._w * self._h
-    
-    @property
-    def adjacency_matrix(self) -> NDArray[np.bool_]:
-        # Matrix construction assuming non-toroidal grid
-        row_idxs = np.arange(self.n_states) // self._w
-        col_idxs = np.arange(self.n_states) % self._w
-        vert_dists = np.abs(row_idxs[:, None] - row_idxs[None, :])
-        hor_dists = np.abs(col_idxs[:, None] - col_idxs[None, :]) 
-        adj_mat = hor_dists + vert_dists == 1 
 
-        # Inserting obstacles
-        if self._obstacles is not None:
-            adj_mat[self._obstacles[:, 0], self._obstacles[:, 1]] = False
-            adj_mat[self._obstacles[:, 1], self._obstacles[:, 0]] = False # Enforce symmetry
-    
-        return adj_mat
-                        
     @property
     def obstacles(self) -> NDArray[np.int_]:
         return self._obstacles
@@ -82,3 +64,27 @@ class GridWorld:
                 raise ValueError("Obstacles must be between adjacent states")
 
         self._obstacles = new_obstacles
+    
+    @property
+    def grid_indices(self) -> NDArray[np.int_]:
+        return np.arange(self.n_states).reshape((self._h, self._w))
+    
+    @property
+    def n_states(self) -> int:
+        return self._w * self._h
+    
+    @property
+    def adjacency_matrix(self) -> NDArray[np.bool_]:
+        # Matrix construction assuming non-toroidal grid
+        row_idxs = np.arange(self.n_states) // self._w
+        col_idxs = np.arange(self.n_states) % self._w
+        vert_dists = np.abs(row_idxs[:, None] - row_idxs[None, :])
+        hor_dists = np.abs(col_idxs[:, None] - col_idxs[None, :]) 
+        adj_mat = hor_dists + vert_dists == 1 
+
+        # Inserting obstacles
+        if self._obstacles is not None:
+            adj_mat[self._obstacles[0], self._obstacles[1]] = False
+            adj_mat[self._obstacles[1], self._obstacles[0]] = False # Enforce symmetry
+    
+        return adj_mat
