@@ -8,6 +8,7 @@ from numpy.typing import NDArray
 class _State:
     _idx: int
     _grid: GridWorld
+    _reward: int | float
 
     def __post_init__(self):
         self.row = self._idx // self.grid.w
@@ -20,19 +21,21 @@ class _State:
     @property
     def idx_to_coords(self):
         return self.row, self.col
-
+  
 
 @dataclass
 class GridWorld:
     _w: int 
     _h: int
     _obstacles: NDArray[np.int_] = field(default=None)
+    _initialized: bool = False
 
     def __post_init__(self) -> None:
         self.h = self._h
         self.w = self._w
         if self._obstacles is not None:
             self.obstacles = self._obstacles
+        self._initialized = True
 
     @property
     def w(self) -> int:
@@ -43,6 +46,9 @@ class GridWorld:
         if new_w <= 0:
             raise ValueError("Width must be greater than 0")
         self._w = new_w
+        if self._initialized:
+            self._obstacles = None # Reset obstacles if grid size changes
+            print("Warning, change of grid size has removed obstacles.")
     
     @property
     def h(self) -> int:
@@ -53,6 +59,9 @@ class GridWorld:
         if new_h <= 0:
             raise ValueError("Height must be greater than 0")
         self._h = new_h
+        if self._initialized:
+            self._obstacles = None # Reset obstacles if grid size changes
+            print("Warning, change of grid size has removed obstacles.")
 
     @property
     def obstacles(self) -> NDArray[np.int_]:
@@ -76,7 +85,7 @@ class GridWorld:
         if np.any(np.diff(new_obstacles, axis=0) == 0):
             raise ValueError("Obstacles must be between different states")
         # Check for non-neighbor obstacles
-        if not np.all(self._base_adjacency_matrix[new_obstacles[0], new_obstacles[1]]):
+        if not np.all(self.base_adjacency_matrix[new_obstacles[0], new_obstacles[1]]):
             raise ValueError("Obstacles must be between adjacent states")
 
         self._obstacles = new_obstacles
@@ -101,8 +110,12 @@ class GridWorld:
         return adj_mat
     
     @property
+    def base_adjacency_matrix(self) -> NDArray[np.bool_]:
+        return self._base_adjacency_matrix
+    
+    @property
     def adjacency_matrix(self) -> NDArray[np.bool_]:
-        adj_mat = self._base_adjacency_matrix
+        adj_mat = self.base_adjacency_matrix
 
         # Inserting obstacles
         if self._obstacles is not None:
@@ -110,3 +123,7 @@ class GridWorld:
             adj_mat[self._obstacles[1], self._obstacles[0]] = False # Enforce symmetry
     
         return adj_mat
+    
+    @property
+    def initialized(self) -> bool:
+        return self._initialized
