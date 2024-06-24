@@ -4,12 +4,12 @@ import numpy as np
 from numpy.typing import NDArray
 from typing import Iterable, Optional
 
-# TODO: GridState + refactor
-@dataclass(frozen=True)
+@dataclass
 class _State:
     _idx: int
     _grid: GridWorld
     _reward: float
+    _is_terminal: bool
 
     def __post_init__(self):
         # Check if state within grid
@@ -29,6 +29,10 @@ class _State:
     @property
     def idx(self):
         return self._idx
+    
+    @property
+    def is_terminal(self):
+        return self._is_terminal
 
     @property
     def coords(self):
@@ -50,26 +54,28 @@ class _State:
         else:
             return self._grid.adjacency_matrix[self.idx, x]
 
-
-    # # TODO: Implement the action space first!!!!
-    # # TODO: Implement simple policies first     
-    # def prob_transition_to(self, s: int | _State) -> np.float_:
-    #     # Check if x is a valid state
-    #     self._check_idx(x)
-    #     if isinstance(x, _State):
-    #         return self._grid.transition_probs[self.idx, x.idx]
-    #     else:
-    #         return self._grid.transition_probs[self.idx, x]
-        
-    # @property
-    # def transition_probs(self) -> NDArray[np.float_]:
-    #     return self._grid.transition_probs[self.idx]
+    def calc_transition_prob(self, s: int | _State, policy: NDArray[np.float_]) -> np.float_:
+        # Check if new state is valid 
+        self._check_idx(s)
+        # Calculate probability
+        idx = s if type(s) is int else s.idx
+        return self._grid.transition_matrix[idx, :, self.idx] @ policy[:, self.idx]
     
-    # # @probability
-
+    def calc_multistep_transition_prob(self, s: int | _State, n_steps: int, policy: NDArray[np.float_]) -> np.float_:
+        # Check if new state is valid 
+        self._check_idx(s)
+        # Check if step size is valid
+        if n_steps < 0:
+            raise ValueError("Number of transitions needs to be positive.")
+        state_trans_matrix = np.einsum("ijk,jk->ik", self._grid.transition_matrix, policy)
+        idx = s if type(s) is int else s.idx
+        # TODO: Implement faster matrix power algorithm? 
+        return np.linalg.matrix_power(state_trans_matrix, n_steps)[idx, self.idx]
+    
 # [[up], [down], [left], [right]]  
 ACTION_SPACE = np.array([[-1, 0], [1, 0], [0, -1], [0, 1]]) # (4 x 2)
-    
+
+# TODO: reward structure (maybe latent within the state structure), state space
 @dataclass
 class GridWorld:
     _w: int 
@@ -80,7 +86,6 @@ class GridWorld:
     _initialized: bool = False
 
     def __post_init__(self) -> None:
-        # TODO: reward structure (maybe latent within the state structure), state space
         self.h = self._h
         self.w = self._w
         self.actions = self._actions
